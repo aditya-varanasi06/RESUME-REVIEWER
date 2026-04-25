@@ -43,19 +43,6 @@ The web app includes:
 
 The project is now deploy-ready through the WSGI entrypoint in `app.py`.
 
-### Easiest Option: Render
-
-1. Push this folder to a GitHub repository.
-2. Go to Render and create a new **Web Service** from that repository.
-3. Use these settings:
-
-```text
-Runtime: Python
-Build Command: pip install -r requirements.txt
-Start Command: gunicorn app:application
-```
-
-4. Deploy. Render will give you a public `https://...onrender.com` URL.
 
 ### Other Hosts
 
