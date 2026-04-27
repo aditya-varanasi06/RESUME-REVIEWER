@@ -1,6 +1,6 @@
-# Advanced Resume Reviewer
+# ATS Resume Score Analyzer
 
-A local Python resume reviewer that gives practical, ATS-aware feedback without sending resume text to a third-party service.
+A Python resume optimization tool for software resumes. It gives structured ATS, role-fit, keyword, and bullet-quality feedback without sending resume text to a third-party service.
 
 It reviews a resume for:
 
@@ -8,6 +8,8 @@ It reviews a resume for:
 - quantified impact and action verbs
 - role-fit against a job description
 - keyword and skill alignment
+- role-specific analysis for software, backend, frontend, ML, and data roles
+- experience-level tuning for fresher, experienced, and senior resumes
 - readability and bullet quality
 - red flags such as vague claims, missing dates, and repeated weak phrasing
 - prioritized rewrite suggestions
@@ -29,6 +31,8 @@ Then open the printed localhost URL.
 The web app includes:
 
 - side-by-side resume and job-description workspace
+- TXT/MD resume upload in the browser
+- target role and experience-level selectors
 - sample data loader for a quick demo
 - live word counters
 - overall score ring and category score tiles
@@ -36,13 +40,27 @@ The web app includes:
 - priority findings with severity labels
 - matched and missing keyword chips
 - ATS section coverage
-- rewrite starters
+- section-wise feedback
+- before/after rewrite starters
 - copy/export controls for Markdown and JSON reports
 
 ## Make It A Public Website
 
 The project is now deploy-ready through the WSGI entrypoint in `app.py`.
 
+### Easiest Option: Render
+
+1. Push this folder to a GitHub repository.
+2. Go to Render and create a new **Web Service** from that repository.
+3. Use these settings:
+
+```text
+Runtime: Python
+Build Command: pip install -r requirements.txt
+Start Command: gunicorn app:application
+```
+
+4. Deploy. Render will give you a public `https://...onrender.com` URL.
 
 ### Other Hosts
 
@@ -75,6 +93,12 @@ Markdown report:
 python review_resume.py resume.txt --job job.txt
 ```
 
+Target a specific role and experience level:
+
+```powershell
+python review_resume.py resume.txt --job job.txt --role backend --level senior
+```
+
 JSON report:
 
 ```powershell
@@ -103,6 +127,12 @@ samples/
   sample_job.txt
 tests/
   test_analyzer.py
+```
+
+## Notes
+
+This tool is intentionally heuristic. It is designed to behave like a sharp first-pass reviewer: consistent, fast, and specific. It does not promise hiring outcomes, and it should be used alongside human judgment.
+
 ```
 
 ## Notes
