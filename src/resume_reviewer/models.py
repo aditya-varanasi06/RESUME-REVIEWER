@@ -28,6 +28,7 @@ class SectionAnalysis:
     detected: list[str]
     missing: list[str]
     section_scores: dict[str, int]
+    section_feedback: dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,8 @@ class KeywordMatch:
 class ReviewReport:
     scorecard: ScoreCard
     summary: str
+    role: str
+    experience_level: str
     section_analysis: SectionAnalysis
     keyword_match: KeywordMatch
     strengths: list[str]
