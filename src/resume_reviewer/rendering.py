@@ -27,6 +27,8 @@ def render_markdown(report: ReviewReport) -> str:
         "",
         report.summary,
         "",
+        f"**Target:** {report.experience_level} {report.role}",
+        "",
         "## Strengths",
         "",
     ]
@@ -45,6 +47,11 @@ def render_markdown(report: ReviewReport) -> str:
         ])
     if not report.findings:
         lines.extend(["No major issues detected.", ""])
+
+    lines.extend(["## Section-Wise Feedback", ""])
+    for section, feedback in report.section_analysis.section_feedback.items():
+        score = report.section_analysis.section_scores.get(section, 0)
+        lines.append(f"- **{section.title()} ({score}/100):** {feedback}")
 
     lines.extend(["## Job Keyword Match", ""])
     if report.keyword_match.matched or report.keyword_match.missing:
