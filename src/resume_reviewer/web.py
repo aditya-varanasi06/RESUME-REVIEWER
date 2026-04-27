@@ -685,7 +685,7 @@ def page_template() -> str:
   <header>
     <div class="topbar">
       <div>
-        <p class="eyebrow">Private local review system</p>
+        <p class="eyebrow">review system</p>
         <h1>ATS Resume Score Analyzer</h1>
         <p>Optimize software resumes with role-specific scoring, job-description matching, section feedback, and bullet rewrites.</p>
       </div>
