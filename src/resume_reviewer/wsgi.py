@@ -29,8 +29,10 @@ def application(environ, start_response):
         data = parse_qs(body)
         resume = data.get("resume", [""])[0]
         job = data.get("job", [""])[0]
-        report = ResumeReviewer().review(resume, job)
-        html = render_page(resume, job, report)
+        role = data.get("role", ["software_engineer"])[0]
+        level = data.get("level", ["experienced"])[0]
+        report = ResumeReviewer().review(resume, job, role=role, experience_level=level)
+        html = render_page(resume, job, report, role, level)
         return html_response(start_response, html)
 
     body = b"Method not allowed"
