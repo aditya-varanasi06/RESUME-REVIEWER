@@ -752,7 +752,7 @@ def page_template() -> str:
 
           <div class="submit-row">
             <button type="submit" id="review-button">Review Resume</button>
-            <p class="privacy-note">Runs locally through this Python server. No external API calls.</p>
+            <p class="privacy-note">Runs through this Vercel Python server. No external API calls.</p>
           </div>
         </form>
       </section>
