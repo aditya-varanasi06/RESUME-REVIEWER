@@ -26,8 +26,10 @@ class ResumeReviewHandler(BaseHTTPRequestHandler):
         data = parse_qs(body)
         resume = data.get("resume", [""])[0]
         job = data.get("job", [""])[0]
-        report = ResumeReviewer().review(resume, job)
-        self._send_html(render_page(resume, job, report))
+        role = data.get("role", ["software_engineer"])[0]
+        level = data.get("level", ["experienced"])[0]
+        report = ResumeReviewer().review(resume, job, role=role, experience_level=level)
+        self._send_html(render_page(resume, job, report, role, level))
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -41,7 +43,13 @@ class ResumeReviewHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
 
-def render_page(resume: str = "", job: str = "", report=None) -> str:
+def render_page(
+    resume: str = "",
+    job: str = "",
+    report=None,
+    role: str = "software_engineer",
+    level: str = "experienced",
+) -> str:
     sample_resume = _read_sample("sample_resume.txt")
     sample_job = _read_sample("sample_job.txt")
     report_html = render_report(report) if report else render_empty_state()
@@ -50,6 +58,8 @@ def render_page(resume: str = "", job: str = "", report=None) -> str:
         template
         .replace("__RESUME__", html.escape(resume))
         .replace("__JOB__", html.escape(job))
+        .replace(f'value="{role}"', f'value="{role}" selected')
+        .replace(f'value="{level}"', f'value="{level}" selected')
         .replace("__REPORT__", report_html)
         .replace("__SAMPLE_RESUME__", json.dumps(sample_resume))
         .replace("__SAMPLE_JOB__", json.dumps(sample_job))
@@ -64,11 +74,17 @@ def render_report(report) -> str:
     missing = chip_list(report.keyword_match.missing[:18], "miss")
     detected = chip_list(report.section_analysis.detected, "match")
     missing_sections = chip_list(report.section_analysis.missing, "miss")
+    section_feedback = "".join(
+        section_row(name, report.section_analysis.section_scores.get(name, 0), feedback)
+        for name, feedback in report.section_analysis.section_feedback.items()
+    )
     strengths = list_items(report.strengths)
     actions = ordered_items(report.next_actions)
     findings = "".join(render_finding(finding) for finding in report.findings)
     rewrites = list_items(report.rewritten_bullets)
     metrics = report.metrics
+    weak_phrases = metrics.get("weak_phrases", [])
+    weak_phrase_chips = chip_list(weak_phrases if isinstance(weak_phrases, list) else [], "miss")
     score_style = f"--score:{score.overall * 3.6}deg"
 
     return f"""
@@ -82,6 +98,10 @@ def render_report(report) -> str:
           <p class="eyebrow">Resume intelligence report</p>
           <h2>{score_label(score.overall)}</h2>
           <p class="summary">{html.escape(report.summary)}</p>
+          <div class="target-line">
+            <span>{html.escape(report.experience_level)}</span>
+            <span>{html.escape(report.role)}</span>
+          </div>
         </div>
       </div>
 
@@ -141,10 +161,20 @@ def render_report(report) -> str:
 
       <section class="panel">
         <div class="panel-title">
-          <h3>Rewrite Starters</h3>
-          <span>Make bullets sharper</span>
+          <h3>Section-Wise Feedback</h3>
+          <span>ATS structure</span>
+        </div>
+        <div class="section-table">{section_feedback}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h3>Before / After Bullet Starters</h3>
+          <span>STAR-style rewrites</span>
         </div>
         <ul>{rewrites or '<li>Existing sample bullets are already reasonably strong.</li>'}</ul>
+        <h4>Weak phrases found</h4>
+        <div class="chips">{weak_phrase_chips or '<span class="empty-chip">No weak phrases detected</span>'}</div>
       </section>
 
       <section class="panel exports">
@@ -176,13 +206,17 @@ def render_empty_state() -> str:
       <div>
         <p class="eyebrow">Ready when you are</p>
         <h2>Paste a resume to generate a full review.</h2>
-        <p>The reviewer scores structure, impact, clarity, role fit, skills, and gives concrete rewrite moves.</p>
+        <p>The reviewer parses sections, compares the resume against role and job-description keywords, checks bullet strength, and returns measurable fixes instead of generic advice.</p>
       </div>
       <div class="empty-grid">
-        <span>ATS scan</span>
-        <span>Keyword fit</span>
-        <span>Impact checks</span>
-        <span>Rewrite starters</span>
+        <span>0-100 score</span>
+        <span>ATS simulation</span>
+        <span>JD keyword fit</span>
+        <span>Section feedback</span>
+        <span>Weak verb scan</span>
+        <span>STAR rewrites</span>
+        <span>Role tuning</span>
+        <span>JSON export</span>
       </div>
     </section>
     """
@@ -207,6 +241,17 @@ def score_tile(label: str, value: int, detail: str) -> str:
       <b>{value}</b>
       <span>{html.escape(label)}</span>
       <small>{html.escape(detail)}</small>
+    </div>
+    """
+
+
+def section_row(name: str, score: int, feedback: str) -> str:
+    status = "good" if score >= 80 else "critical"
+    return f"""
+    <div class="section-row {status}">
+      <b>{html.escape(name.title())}</b>
+      <span>{score}/100</span>
+      <p>{html.escape(feedback)}</p>
     </div>
     """
 
@@ -263,7 +308,7 @@ def page_template() -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Advanced Resume Reviewer</title>
+  <title>ATS Resume Score Analyzer</title>
   <style>
     :root {
       color-scheme: light;
@@ -361,9 +406,39 @@ def page_template() -> str:
       gap: 8px;
       justify-content: flex-end;
     }
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+    .flow-steps span {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      padding: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-align: center;
+    }
     form { display: grid; gap: 14px; }
     label { display: grid; gap: 8px; font-weight: 800; }
     label span { color: var(--muted); font-weight: 600; font-size: 12px; }
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    select, input[type="file"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: #fbfcfd;
+      color: var(--ink);
+      min-height: 42px;
+    }
     textarea {
       width: 100%;
       min-height: 270px;
@@ -453,6 +528,20 @@ def page_template() -> str:
     .score-ring span { display: block; font-size: 42px; line-height: 1; font-weight: 950; color: var(--accent-dark); }
     .score-ring small { color: var(--muted); font-weight: 800; }
     .summary { margin-bottom: 0; }
+    .target-line {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .target-line span {
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #edf8f4;
+      color: var(--accent-dark);
+      font-weight: 900;
+      font-size: 12px;
+    }
     .score-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -533,6 +622,21 @@ def page_template() -> str:
     .chip.miss { color: var(--danger); background: #fbefed; border-color: #efcac5; }
     .empty-chip { color: var(--muted); }
     .exports { display: grid; gap: 12px; }
+    .section-table { display: grid; gap: 10px; }
+    .section-row {
+      display: grid;
+      grid-template-columns: 140px 72px 1fr;
+      gap: 12px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--danger);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+    .section-row.good { border-left-color: var(--accent); }
+    .section-row span { font-weight: 900; color: var(--muted); }
+    .section-row p { margin: 0; }
     .export-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     details {
       border: 1px solid var(--line);
@@ -564,6 +668,7 @@ def page_template() -> str:
       .header-actions, .input-header, .submit-row { justify-content: stretch; }
       .header-actions button, .input-tools button, .submit-row button { width: 100%; }
       .input-header { display: grid; }
+      .field-grid, .flow-steps, .section-row { grid-template-columns: 1fr; }
       .score-grid, .metrics-strip, .empty-grid { grid-template-columns: repeat(2, 1fr); }
       .result-header { grid-template-columns: 1fr; }
       .score-ring { width: 120px; }
@@ -581,8 +686,8 @@ def page_template() -> str:
     <div class="topbar">
       <div>
         <p class="eyebrow">Private local review system</p>
-        <h1>Advanced Resume Reviewer</h1>
-        <p>Paste a resume and optional job description to get ATS, impact, clarity, skills, and role-fit feedback on your machine.</p>
+        <h1>ATS Resume Score Analyzer</h1>
+        <p>Optimize software resumes with role-specific scoring, job-description matching, section feedback, and bullet rewrites.</p>
       </div>
       <div class="header-actions">
         <button class="secondary" type="button" id="load-sample">Load Sample</button>
@@ -603,7 +708,36 @@ def page_template() -> str:
             <button class="secondary" type="button" data-copy-target="job-input">Copy Job</button>
           </div>
         </div>
+        <div class="flow-steps">
+          <span>1. Upload resume</span>
+          <span>2. Choose target</span>
+          <span>3. Get report</span>
+        </div>
         <form method="post">
+          <label for="resume-file">Resume upload
+            <span>TXT and MD files load instantly in the browser. Paste text below for PDF/DOCX content.</span>
+          </label>
+          <input id="resume-file" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown">
+
+          <div class="field-grid">
+            <label for="role-input">Target role
+              <select id="role-input" name="role">
+                <option value="software_engineer">Software Engineer</option>
+                <option value="backend">Backend Engineer</option>
+                <option value="frontend">Frontend Engineer</option>
+                <option value="ml">ML Engineer</option>
+                <option value="data">Data Analyst</option>
+              </select>
+            </label>
+            <label for="level-input">Experience level
+              <select id="level-input" name="level">
+                <option value="fresher">Fresher</option>
+                <option value="experienced">Experienced</option>
+                <option value="senior">Senior</option>
+              </select>
+            </label>
+          </div>
+
           <label for="resume-input">Resume text
             <span>Plain text works best. PDF and DOCX are supported through the CLI.</span>
           </label>
@@ -617,7 +751,7 @@ def page_template() -> str:
           <div class="counter"><span id="job-count">0 words</span><span>Optional</span></div>
 
           <div class="submit-row">
-            <button type="submit">Review Resume</button>
+            <button type="submit" id="review-button">Review Resume</button>
             <p class="privacy-note">Runs locally through this Python server. No external API calls.</p>
           </div>
         </form>
@@ -632,6 +766,8 @@ def page_template() -> str:
     const sampleJob = __SAMPLE_JOB__;
     const resumeInput = document.getElementById("resume-input");
     const jobInput = document.getElementById("job-input");
+    const resumeFile = document.getElementById("resume-file");
+    const reviewButton = document.getElementById("review-button");
 
     function wordCount(text) {
       const matches = text.trim().match(/[A-Za-z0-9+#./-]+/g);
@@ -668,6 +804,20 @@ def page_template() -> str:
       resumeInput.focus();
     });
 
+    resumeFile.addEventListener("change", async () => {
+      const file = resumeFile.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      resumeInput.value = text;
+      updateCounters();
+      resumeInput.focus();
+    });
+
+    document.querySelector("form").addEventListener("submit", () => {
+      reviewButton.textContent = "Analyzing your resume...";
+      reviewButton.disabled = true;
+    });
+
     const downloadButton = document.getElementById("download-markdown");
     if (downloadButton) {
       downloadButton.addEventListener("click", () => {
@@ -692,7 +842,7 @@ def page_template() -> str:
 
 def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), ResumeReviewHandler)
-    print(f"Advanced Resume Reviewer running at http://{HOST}:{PORT}")
+    print(f"ATS Resume Score Analyzer running at http://{HOST}:{PORT}")
     server.serve_forever()
 
 
